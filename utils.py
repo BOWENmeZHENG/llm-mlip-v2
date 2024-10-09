@@ -112,13 +112,13 @@ def preprocess(record_list, classes, tokenizer, batch_size, max_length, test=Fal
         data_batches, target_batches, att_mask_batches = zip(*c)
         return data_batches, target_batches, att_mask_batches
 
-def save_annotations(record_list, true_all, pred_all, model_name):
+def save_annotations(record_list, true_all, pred_all, model_name, dataset):
     for sample_id, d in enumerate(record_list):
         words_test = d['words']
         labels_test = true_all[sample_id][:len(words_test)].tolist()
         pred_test = pred_all[sample_id, :, :].max(dim=0)[1][:len(words_test)].tolist()
         data_test_dict = {'words': words_test, 'labels': labels_test, 'pred': pred_test}
-        with open(f"saved_models/{model_name}_test_{sample_id}.json", 'w') as f_test:
+        with open(f"saved_models/{model_name}_{dataset}_{sample_id}.json", 'w') as f_test:
             json.dump(data_test_dict, f_test)
 
 def seed_everything(seed):

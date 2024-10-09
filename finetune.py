@@ -23,8 +23,12 @@ class ModelArguments:
         default='./instance/AnnoApp.sqlite',
         metadata={"help": "Path to database of annotations for texts."}
     )
-    database_ood_path: str = field(
-        default='./instance/AnnoApp_ood.sqlite',
+    database_ood_1_path: str = field(
+        default='./instance/AnnoApp_ood_nanosimulation.sqlite',
+        metadata={"help": "Path to database of annotations for out-of-distribution texts."}
+    )
+    database_ood_2_path: str = field(
+        default='./instance/AnnoApp_ood_metamaterial.sqlite',
         metadata={"help": "Path to database of annotations for out-of-distribution texts."}
     )
 
@@ -39,7 +43,7 @@ class TrainingArguments:
         metadata={"help": "Total number of training epochs to perform."}
     )
     classes_weights: tuple = field(
-        default=(0.3, 1., 1., 1., 1., 1., 0.5, 0.5),
+        default=(0.5, 1., 1., 1., 1., 1., 0.5, 0.5),
         metadata={"help": "weights for each NER class."}
     )
     train_batch_size: int = field(
@@ -65,12 +69,16 @@ class TrainingArguments:
         default=0.9,
         metadata={"help": "Percentage of total data for training."}
     )
+    training_actual: int = field(
+        default=72,
+        metadata={"help": "Number of training data that are actually used."}
+    )
     seed: int = field(
         default=3242,
         metadata={"help": "Random seed for everything except data shuffling."}
     )
     seed_shuffle: int = field(
-        default=56834,
+        default=5634,
         metadata={"help": "Random seed for data shuffling."}
     )
 
@@ -118,15 +126,19 @@ def main():
     # Training/test partition
     random.shuffle(record_list_id)
     N_train = int(training_args.training_percentage * len(record_list_id))
-    record_list_train = record_list_id[:N_train]
+    record_list_train = record_list_id[:N_train][:training_args.training_actual]
     record_list_test = record_list_id[N_train:]
-    print(f'Number of training data: {len(record_list_train)}')
+    print(f'Number of total training data: {N_train}')
+    print(f'Number of training data used: {len(record_list_train)}')
     print(f'Number of test data: {len(record_list_test)}')
 
     # Load OOD data
-    records_ood = ut.get_data(model_args.database_ood_path)
-    record_list_ood = ut.form_record_list(records_ood)
-    print(f'Number of OOD data: {len(records_ood)}')
+    records_ood_1 = ut.get_data(model_args.database_ood_1_path)
+    record_list_ood_1 = ut.form_record_list(records_ood_1)
+    print(f'Number of OOD_1 data: {len(records_ood_1)}')
+    records_ood_2 = ut.get_data(model_args.database_ood_2_path)
+    record_list_ood_2 = ut.form_record_list(records_ood_2)
+    print(f'Number of OOD_2 data: {len(records_ood_2)}')
 
     # Load pretrained model
     ut.seed_everything(training_args.seed)
@@ -135,9 +147,9 @@ def main():
     model = net.NERBERTModel(modelBERT.base_model, output_size=len(CLASSES)+1)
 
     # Run training
-    pred_test, pred_ood = train(
+    pred_test, pred_ood_1, pred_ood_2 = train(
         model, tokenizerBERT,
-        record_list_train, record_list_test, record_list_ood, CLASSES, 
+        record_list_train, record_list_test, record_list_ood_1, record_list_ood_2, CLASSES, 
         training_args.train_batch_size, training_args.seed, training_args.max_seq_length, training_args.classes_weights, 
         training_args.learning_rate, training_args.n_epochs, training_args.linear_probe,
         plot=other_args.plot, save_model=other_args.save_model, save_results=other_args.save_results
@@ -151,11 +163,17 @@ def main():
         real_preds_test = predictions_test[:len(word_test_list)]
         ut.show_pred(real_preds_test, word_test_list)
 
-        sample_ood_id = random.randint(0, len(record_list_ood) - 1)
-        word_ood_list = record_list_ood[sample_ood_id]['words']
-        predictions_ood = pred_ood[sample_ood_id, :, :].max(dim=0)[1]
-        real_preds_ood = predictions_ood[:len(word_ood_list)]
-        ut.show_pred(real_preds_ood, word_ood_list)
+        sample_ood_1_id = random.randint(0, len(record_list_ood_1) - 1)
+        word_ood_1_list = record_list_ood_1[sample_ood_1_id]['words']
+        predictions_ood_1 = pred_ood_1[sample_ood_1_id, :, :].max(dim=0)[1]
+        real_preds_ood_1 = predictions_ood_1[:len(word_ood_1_list)]
+        ut.show_pred(real_preds_ood_1, word_ood_1_list)
+
+        sample_ood_2_id = random.randint(0, len(record_list_ood_2) - 1)
+        word_ood_2_list = record_list_ood_2[sample_ood_2_id]['words']
+        predictions_ood_2 = pred_ood_2[sample_ood_2_id, :, :].max(dim=0)[1]
+        real_preds_ood_2 = predictions_ood_2[:len(word_ood_2_list)]
+        ut.show_pred(real_preds_ood_2, word_ood_2_list)
 
 if __name__ == "__main__":
     main()
